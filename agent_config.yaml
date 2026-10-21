@@ -1,0 +1,20 @@
+mcp_servers:
+  finance:
+    args:
+    - --with
+    - mcp<2.0.0
+    - investor-agent==1.6.2
+    command: uvx
+    transport: stdio
+models:
+- api_key: $OPENROUTER_API_KEY
+  name: openai/gpt-6-astra
+  temperature: 0.5
+  url: https://openrouter.ai/api/v1
+- api_key: $OPENROUTER_API_KEY
+  name: nemotron-3.5-bolt
+  temperature: 0.5
+  url: http://localhost:11434/v1
+system_prompt: You are a helpful assistant. You should know that your current location
+  is in Berlin, Germany.
+tool_prompt_hints: {}

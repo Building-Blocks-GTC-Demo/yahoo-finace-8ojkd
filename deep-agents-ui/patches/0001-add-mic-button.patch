@@ -1,0 +1,187 @@
+diff --git a/src/app/components/ChatInterface.tsx b/src/app/components/ChatInterface.tsx
+index c3691a9..f9581e4 100644
+--- a/src/app/components/ChatInterface.tsx
++++ b/src/app/components/ChatInterface.tsx
+@@ -4,6 +4,7 @@ import React, {
+   useState,
+   useRef,
+   useCallback,
++  useEffect,
+   useMemo,
+   FormEvent,
+   Fragment,
+@@ -16,6 +17,7 @@ import {
+   Clock,
+   Circle,
+   FileIcon,
++  Mic,
+ } from "lucide-react";
+ import { ChatMessage } from "@/app/components/ChatMessage";
+ import type {
+@@ -86,6 +88,119 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
+ 
+   const submitDisabled = isLoading || !assistant;
+ 
++  const [isRecording, setIsRecording] = useState(false);
++  const [liveTranscript, setLiveTranscript] = useState("");
++  const [asrError, setAsrError] = useState<string | null>(null);
++  const wsRef = useRef<WebSocket | null>(null);
++  const audioContextRef = useRef<AudioContext | null>(null);
++  const micStreamRef = useRef<MediaStream | null>(null);
++
++  const asrWsEndpoint = useCallback((sampleRate: number) => {
++    const wsProtocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss:" : "ws:";
++    const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
++    return `${wsProtocol}//${host}:8000/api/asr/stream?sample_rate=${sampleRate}`;
++  }, []);
++
++  const stopRecording = useCallback(() => {
++    setIsRecording(false);
++    setLiveTranscript("");
++    audioContextRef.current?.close();
++    audioContextRef.current = null;
++    micStreamRef.current?.getTracks().forEach((track) => track.stop());
++    micStreamRef.current = null;
++    wsRef.current?.close();
++    wsRef.current = null;
++  }, []);
++
++  const startRecording = useCallback(async () => {
++    if (isRecording) return;
++    setAsrError(null);
++    setLiveTranscript("");
++    try {
++      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
++      micStreamRef.current = stream;
++
++      const audioContext = new AudioContext();
++      audioContextRef.current = audioContext;
++      const sampleRate = Math.round(audioContext.sampleRate);
++
++      const ws = new WebSocket(asrWsEndpoint(sampleRate));
++      wsRef.current = ws;
++
++      ws.onmessage = (event) => {
++        try {
++          const data = JSON.parse(event.data);
++          if (data.type === "interim") {
++            setLiveTranscript(data.transcript ?? "");
++          } else if (data.type === "final") {
++            const transcript = (data.transcript ?? "").trim();
++            if (transcript) {
++              setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
++            }
++            setLiveTranscript("");
++          } else if (data.type === "error") {
++            setAsrError(data.message ?? "Transcription error.");
++            stopRecording();
++          }
++        } catch {
++          // ignore malformed message
++        }
++      };
++      ws.onerror = () => {
++        setAsrError("Live transcription connection failed.");
++        stopRecording();
++      };
++      ws.onclose = (event) => {
++        if (wsRef.current !== ws) return;
++        setAsrError(event.reason || "Live transcription connection closed.");
++        stopRecording();
++      };
++
++      const source = audioContext.createMediaStreamSource(stream);
++      const processor = audioContext.createScriptProcessor(4096, 1, 1);
++      // Route through a silent gain node — some browsers only fire
++      // onaudioprocess while the graph is connected to destination.
++      const silentGain = audioContext.createGain();
++      silentGain.gain.value = 0;
++
++      processor.onaudioprocess = (e) => {
++        if (ws.readyState !== WebSocket.OPEN) return;
++        const channelData = e.inputBuffer.getChannelData(0);
++        const pcm = new Int16Array(channelData.length);
++        for (let i = 0; i < channelData.length; i++) {
++          const s = Math.max(-1, Math.min(1, channelData[i]));
++          pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
++        }
++        ws.send(pcm.buffer);
++      };
++
++      source.connect(processor);
++      processor.connect(silentGain);
++      silentGain.connect(audioContext.destination);
++
++      setIsRecording(true);
++    } catch {
++      stopRecording();
++      setAsrError("Microphone access denied or unavailable.");
++    }
++  }, [isRecording, asrWsEndpoint, stopRecording]);
++
++  const handleMicClick = useCallback(() => {
++    if (isRecording) {
++      stopRecording();
++    } else {
++      startRecording();
++    }
++  }, [isRecording, stopRecording, startRecording]);
++
++  useEffect(() => {
++    return () => {
++      audioContextRef.current?.close();
++      micStreamRef.current?.getTracks().forEach((track) => track.stop());
++      wsRef.current?.close();
++    };
++  }, []);
++
+   const handleSubmit = useCallback(
+     (e?: FormEvent) => {
+       if (e) {
+@@ -509,11 +624,45 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(({ assistant }) => {
+               value={input}
+               onChange={(e) => setInput(e.target.value)}
+               onKeyDown={handleKeyDown}
+-              placeholder={isLoading ? "Running..." : "Write your message..."}
++              placeholder={
++                isRecording
++                  ? "Listening..."
++                  : isLoading
++                  ? "Running..."
++                  : "Write your message..."
++              }
+               className="font-inherit field-sizing-content flex-1 resize-none border-0 bg-transparent px-[18px] pb-[13px] pt-[14px] text-sm leading-7 text-primary outline-none placeholder:text-tertiary"
+               rows={1}
+             />
+             <div className="flex justify-between gap-2 p-3">
++              <div className="flex min-w-0 items-center justify-start gap-2">
++                <Button
++                  type="button"
++                  variant={isRecording ? "destructive" : "outline"}
++                  onClick={handleMicClick}
++                  disabled={!isRecording && submitDisabled}
++                  aria-label={isRecording ? "Stop recording" : "Speak your message"}
++                  title={isRecording ? "Stop recording" : "Speak your message"}
++                >
++                  <Mic
++                    size={16}
++                    className={isRecording ? "animate-pulse" : undefined}
++                  />
++                </Button>
++                {isRecording && liveTranscript && (
++                  <span className="min-w-0 truncate text-xs italic text-muted-foreground">
++                    {liveTranscript}
++                  </span>
++                )}
++                {!isRecording && asrError && (
++                  <span
++                    role="alert"
++                    className="min-w-0 truncate text-xs text-destructive"
++                  >
++                    {asrError}
++                  </span>
++                )}
++              </div>
+               <div className="flex justify-end gap-2">
+                 <Button
+                   type={isLoading ? "button" : "submit"}

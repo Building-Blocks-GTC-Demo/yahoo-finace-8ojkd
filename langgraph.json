@@ -1,0 +1,12 @@
+{
+  "graphs": {
+    "agent": "agent.agent:graph"
+  },
+  "http": {
+    "app": "agent.playwright_lease:app"
+  },
+  "env": ".env",
+  "dependencies": [
+    "."
+  ]
+}

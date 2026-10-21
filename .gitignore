@@ -1,0 +1,89 @@
+# Makefile temp (frontend build backup)
+.make-static-backup/
+
+# JS generated files
+**/node_modules/
+dist-ssr
+*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+*.pyo
+build/
+dist/
+wheels/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv
+venv
+.env
+.env.*
+!.env.example
+
+# Testing / coverage
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / editor
+.idea/
+.cursor/
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Worktrees
+.worktrees/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# langgraph tmp files
+.langgraph_api/
+
+# Cursor temp files
+large_tool_results/
+
+# Local agent/skill artifacts
+.agents/
+.continue/
+.claude/skills/deep-agents-core
+.claude/skills/deep-agents-memory
+.claude/skills/deep-agents-orchestration
+.claude/skills/framework-selection
+.claude/skills/langchain-dependencies
+.claude/skills/langchain-fundamentals
+.claude/skills/langchain-middleware
+.claude/skills/langchain-rag
+.claude/skills/langgraph-fundamentals
+.claude/skills/langgraph-human-in-the-loop
+.claude/skills/langgraph-persistence
+
+# Arduino compile time files
+**/.pio
+
+artifacts/
+
+scripts/
